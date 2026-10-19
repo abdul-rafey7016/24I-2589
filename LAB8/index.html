@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Penguin Data Analysis - Lab Task 1</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- Load D3.js Library -->
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+<body>
+
+  <header>
+    <h1>Antarctic Research Station — Penguin Analysis</h1>
+    <p>Lab Task 1: D3.js Visualization</p>
+  </header>
+
+  <main>
+    <section class="explanations">
+      <h2>Step 1: prediction</h2>
+        <ol>
+          <strong>“Which species do I think is heaviest?”</strong><br>
+          I predict that the specie <b> Gentoo </b> will be heaviest.
+        </ol>
+    </section>
+</br>
+</br>
+    <!-- Controls to complete Steps 2, 3, and 4 -->
+    <div class="controls">
+      <button id="btn-body-mass" class="active">Body Mass by Species</button>
+      <button id="btn-flipper-length">Flipper Length by Species</button>
+      <button id="btn-island-mass">Body Mass by Island</button>
+    </div>
+
+    <!-- Container where SVG chart is rendered -->
+    <div id="chart-container">
+      <svg id="chart"></svg>
+    </div>
+
+    <!-- Step 5: Explanations -->
+    <section class="explanations">
+      <h2>Step 5: Code Explanations</h2>
+      <ol>
+        <li>
+          <strong>Which line decides how tall each bar is?</strong><br>
+          <code>.attr("height", d => innerHeight - yScale(d[1]))</code> calculates the height of each rectangle by taking the vertical distance from the scaled data value down to the bottom margin.
+        </li>
+        <li>
+          <strong>What would happen if I changed <code>.range([innerHeight, 0])</code> to <code>.range([0, innerHeight])</code>?</strong><br>
+          The vertical Y-axis orientation would invert, causing the scale to draw top-down and making the bars grow downwards from the top margin instead of upwards from the bottom.
+        </li>
+        <li>
+          <strong>How many <code>&lt;rect&gt;</code> elements are in the page, and why?</strong><br>
+          There are <strong>3</strong> <code>&lt;rect&gt;</code> elements on the page because D3 creates exactly one SVG rectangle shape for each aggregated group in the dataset (3 penguin species or 3 islands).
+        </li>
+      </ol>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>

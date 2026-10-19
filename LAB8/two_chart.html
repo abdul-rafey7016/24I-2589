@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Lab Task 2 - Buggy Code for Debugging</title>
+  <!-- Missing standard style block or CDN links might be part of testing -->
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+<body>
+
+  <h1>Penguin Dashboard</h1>
+
+  <!-- Chart 1 Container -->
+  <div>
+    <h2>Chart 1: Body Mass by Species</h2>
+    <svg id="chart1" width="500" height="300"></svg>
+  </div>
+
+  <!-- Chart 2 Container -->
+  <div>
+    <h2>Chart 2: Penguins per Island</h2>
+    <svg id="chart2" width="500" height="300"></svg>
+  </div>
+
+  <script>
+    // Dimensions
+    const margin = { top: 20, right: 20, bottom: 40, left: 50 };
+    const width = 500 - margin.left - margin.right;
+    const height = 300 - margin.top - margin.bottom;
+
+    // Load Data
+    d3.csv("penguins.csv", d3.autoType).then(data => {
+
+      // =========================================
+      // CHART 1: Body Mass by Species
+      // =========================================
+      const svg1 = d3.select("#chart1") // BUG 1 IS HERE
+        .append("g")
+        .attr("transform", `translate(${margin.left},${margin.top})`);
+
+      const speciesData = d3.rollups(
+        data,
+        v => d3.mean(v, d => d.body_mass_g),
+        d => d.species
+      );
+
+      const x1 = d3.scaleBand()
+        .domain(speciesData.map(d => d[0]))
+        .range([0, width])
+        .padding(0.2);
+
+      const y1 = d3.scaleLinear()
+        .domain([0, d3.max(speciesData, d => d[1])])
+        .range([height, 0]);
+
+      svg1.append("g")
+        .attr("transform", `translate(0,${height})`)
+        .call(d3.axisBottom(x1));
+
+      svg1.append("g")
+        .call(d3.axisLeft(y1));
+
+      svg1.selectAll("rect")
+        .data(speciesData)
+        .join("rect")
+        .attr("x", d => x1(d[0]))
+        .attr("y", d => y1(d[1]))
+        .attr("width", x1.bandwidth())
+        .attr("height", d => height - y1(d[1]))// BUG 2 IS HERE
+        .attr("fill", "steelblue");
+
+
+      // =========================================
+      // CHART 2: Count per Island
+      // =========================================
+      const svg2 = d3.select("#chart2") // BUG 3 IS HERE
+        .append("g")
+        .attr("transform", `translate(${margin.left},${margin.top})`);
+
+      const islandData = d3.rollups(
+        data,
+        v => v.length,
+        d => d.island
+      );
+
+      const x2 = d3.scaleBand()
+        .domain(islandData.map(d => d[0]))
+        .range([0, width])
+        .padding(0.2);
+
+      const y2 = d3.scaleLinear()
+        .domain([0, d3.max(islandData, d => d[1])])
+        .range([height, 0]);
+
+      svg2.append("g")
+        .attr("transform", `translate(0,${height})`)
+        .call(d3.axisBottom(x2));
+
+      svg2.append("g")
+        .call(d3.axisLeft(y2));
+
+      svg2.selectAll("rect")
+        .data(islandData)
+        .join("rect")
+        .attr("x", d => x2(d[0]))
+        .attr("y", d => y2(d[1]))
+        .attr("width", x2.bandwidth())
+        .attr("height", d => height - y2(d[1]))
+        .attr("fill", "orange");
+
+    });
+  </script>
+</body>
+</html>
