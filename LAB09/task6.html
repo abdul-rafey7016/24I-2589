@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Task 6 - Combined Spatial Encoding Map</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    .country { fill: #f0f0f0; stroke: #ccc; }
+    .route { stroke-opacity: 0.6; }
+    .city-node { stroke: #fff; stroke-width: 1.5px; cursor: pointer; }
+    .legend { font-size: 11px; font-family: sans-serif; }
+  </style>
+</head>
+<body>
+  <h2>Pakistan Combined Geospatial & Network Map</h2>
+  <div id="combined-map"></div>
+
+  <script>
+    const width = 800, height = 650;
+    const svg = d3.select("#combined-map").append("svg").attr("width", width).attr("height", height);
+
+    const projection = d3.geoMercator()
+      .center([69.5, 29.8])
+      .scale(2400)
+      .translate([width / 2, height / 2]);
+
+    const path = d3.geoPath().projection(projection);
+
+    Promise.all([
+      d3.json("https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson"),
+      d3.csv("dataset/pakistan_cities.csv", d3.autoType),
+      d3.csv("dataset/flights.csv", d3.autoType)
+    ]).then(([geojson, cities, flights]) => {
+      const cityMap = new Map(cities.map(c => [c.name, c]));
+
+      // Degree calculation
+      const degrees = new Map();
+      flights.forEach(f => {
+        degrees.set(f.source, (degrees.get(f.source) || 0) + 1);
+        degrees.set(f.target, (degrees.get(f.target) || 0) + 1);
+      });
+
+      cities.forEach(c => c.degree = degrees.get(c.name) || 0);
+
+      const radiusScale = d3.scaleSqrt()
+        .domain([0, d3.max(cities, d => d.pop)])
+        .range([4, 18]);
+
+      const strokeScale = d3.scaleLinear()
+        .domain(d3.extent(flights, d => d.flights))
+        .range([1, 6]);
+
+      // Base country map
+      svg.append("g").selectAll("path")
+        .data(geojson.features.filter(d => d.id === "PAK"))
+        .join("path")
+        .attr("class", "country")
+        .attr("d", path);
+
+      // Render routes first (underneath nodes)
+      const routeLines = svg.append("g").selectAll("line")
+        .data(flights.filter(f => cityMap.has(f.source) && cityMap.has(f.target)))
+        .join("line")
+        .attr("class", "route")
+        .attr("x1", d => projection([cityMap.get(d.source).lon, cityMap.get(d.source).lat])[0])
+        .attr("y1", d => projection([cityMap.get(d.source).lon, cityMap.get(d.source).lat])[1])
+        .attr("x2", d => projection([cityMap.get(d.target).lon, cityMap.get(d.target).lat])[0])
+        .attr("y2", d => projection([cityMap.get(d.target).lon, cityMap.get(d.target).lat])[1])
+        .attr("stroke", "#ff5555")
+        .attr("stroke-width", d => strokeScale(d.flights));
+
+      // Render city nodes
+      const cityNodes = svg.append("g").selectAll("circle")
+        .data(cities)
+        .join("circle")
+        .attr("class", "city-node")
+        .attr("cx", d => projection([d.lon, d.lat])[0])
+        .attr("cy", d => projection([d.lon, d.lat])[1])
+        .attr("r", d => radiusScale(d.pop))
+        .attr("fill", d => d.degree >= 4 ? "#d95f02" : "#7570b3");
+
+      // Hover actions
+      cityNodes.on("mouseover", (event, d) => {
+        routeLines.style("stroke-opacity", f => (f.source === d.name || f.target === d.name) ? 1 : 0.05)
+                  .style("stroke", f => (f.source === d.name || f.target === d.name) ? "#000" : "#ff5555");
+        cityNodes.style("opacity", c => (c.name === d.name || flights.some(f => (f.source === d.name && f.target === c.name) || (f.target === d.name && f.source === c.name))) ? 1 : 0.2);
+      }).on("mouseout", () => {
+        routeLines.style("stroke-opacity", 0.6).style("stroke", "#ff5555");
+        cityNodes.style("opacity", 1);
+      });
+
+      // Map Legend
+      const legend = svg.append("g").attr("class", "legend").attr("transform", "translate(50, 450)");
+      
+      legend.append("circle").attr("cx", 10).attr("cy", 10).attr("r", 6).attr("fill", "#d95f02");
+      legend.append("text").attr("x", 25).attr("y", 14).text("Hub City (Degree ≥ 4)");
+
+      legend.append("circle").attr("cx", 10).attr("cy", 30).attr("r", 6).attr("fill", "#7570b3");
+      legend.append("text").attr("x", 25).attr("y", 34).text("Regular City");
+
+      legend.append("line").attr("x1", 4).attr("y1", 50).attr("x2", 16).attr("y2", 50).attr("stroke", "#ff5555").attr("stroke-width", 4);
+      legend.append("text").attr("x", 25).attr("y", 54).text("Flight Routes (Thickness = Volume)");
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Task 1 - Course Enrollment Treemap</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    body { font-family: sans-serif; }
+    .rect-cell { stroke: #fff; stroke-width: 1px; }
+    .rect-label { font-size: 11px; fill: white; pointer-events: none; }
+    .tooltip {
+      position: absolute; text-align: left; padding: 8px;
+      font: 12px sans-serif; background: rgba(0, 0, 0, 0.8);
+      color: #fff; border-radius: 4px; pointer-events: none; opacity: 0;
+    }
+    .legend { display: flex; gap: 15px; margin-top: 10px; }
+    .legend-item { display: flex; align-items: center; font-size: 12px; }
+    .legend-color { width: 14px; height: 14px; margin-right: 5px; }
+  </style>
+</head>
+<body>
+  <h2>University Course Enrollment Treemap</h2>
+  <div id="treemap"></div>
+  <div class="legend" id="legend"></div>
+  <div class="tooltip" id="tooltip"></div>
+
+  <script>
+    const width = 800, height = 450;
+
+    const svg = d3.select("#treemap")
+      .append("svg")
+      .attr("width", width)
+      .attr("height", height);
+
+    const tooltip = d3.select("#tooltip");
+
+    d3.csv("dataset/university.csv", d3.autoType).then(data => {
+      // 1. Group data hierarchically
+      const grouped = d3.group(data, d => d.department);
+      const rootData = { name: "University", children: Array.from(grouped, ([key, value]) => ({ name: key, children: value })) };
+
+      // 2. Build d3.hierarchy and sum values
+      const root = d3.hierarchy(rootData)
+        .sum(d => d.students || 0)
+        .sort((a, b) => b.value - a.value);
+
+      // 3. Apply treemap layout
+      d3.treemap()
+        .size([width, height])
+        .paddingInner(2)
+        .paddingOuter(4)(root);
+
+      const color = d3.scaleOrdinal(d3.schemeCategory10);
+
+      // 4. Render leaf rectangles
+      const leaves = svg.selectAll("g")
+        .data(root.leaves())
+        .join("g")
+        .attr("transform", d => `translate(${d.x0},${d.y0})`);
+
+      leaves.append("rect")
+        .attr("class", "rect-cell")
+        .attr("width", d => d.x1 - d.x0)
+        .attr("height", d => d.y1 - d.y0)
+        .attr("fill", d => color(d.parent.data.name))
+        .on("mouseover", (event, d) => {
+          tooltip.style("opacity", 1)
+            .html(`<strong>Course:</strong> ${d.data.course}<br>
+                  <strong>Department:</strong> ${d.parent.data.name}<br>
+                  <strong>Students:</strong> ${d.data.students}`);
+        })
+        .on("mousemove", (event) => {
+          tooltip.style("left", (event.pageX + 10) + "px")
+            .style("top", (event.pageY - 28) + "px");
+        })
+        .on("mouseout", () => tooltip.style("opacity", 0));
+
+      // 5. Add Labels
+      leaves.append("text")
+        .attr("class", "rect-label")
+        .attr("x", 4)
+        .attr("y", 15)
+        .text(d => (d.x1 - d.x0 > 50 && d.y1 - d.y0 > 20) ? d.data.course : "");
+
+      // 6. Build Legend
+      const departments = Array.from(grouped.keys());
+      const legend = d3.select("#legend");
+      departments.forEach(dept => {
+        const item = legend.append("div").attr("class", "legend-item");
+        item.append("div").attr("class", "legend-color").style("background-color", color(dept));
+        item.append("span").text(dept);
+      });
+    });
+  </script>
+</body>
+</html>

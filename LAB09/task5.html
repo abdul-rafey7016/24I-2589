@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Task 5 - Pakistan Cities Point Map</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    .country { fill: #e0e0e0; stroke: #fff; }
+    .city { fill: red; fill-opacity: 0.5; stroke: darkred; }
+    .city-label { font-size: 10px; font-weight: bold; pointer-events: none; }
+    .tooltip {
+      position: absolute; padding: 6px; font: 12px sans-serif;
+      background: rgba(0,0,0,0.8); color: white; border-radius: 4px;
+      pointer-events: none; opacity: 0;
+    }
+  </style>
+</head>
+<body>
+  <h2>Pakistan Cities Point Map</h2>
+  <div id="map"></div>
+  <div class="tooltip" id="tooltip"></div>
+
+  <script>
+    const width = 800, height = 600;
+    const svg = d3.select("#map").append("svg").attr("width", width).attr("height", height);
+    const tooltip = d3.select("#tooltip");
+
+    const projection = d3.geoMercator()
+      .center([70, 30])
+      .scale(2200)
+      .translate([width / 2, height / 2]);
+
+    const path = d3.geoPath().projection(projection);
+
+    Promise.all([
+      d3.json("https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson"),
+      d3.csv("dataset/pakistan_cities.csv", d3.autoType)
+    ]).then(([geojson, cities]) => {
+      // Base map filtered to Pakistan
+      svg.append("g")
+        .selectAll("path")
+        .data(geojson.features.filter(d => d.id === "PAK"))
+        .join("path")
+        .attr("class", "country")
+        .attr("d", path);
+
+      const radiusScale = d3.scaleSqrt()
+        .domain([0, d3.max(cities, d => d.pop)])
+        .range([3, 20]);
+
+      // City Points
+      svg.selectAll("circle")
+        .data(cities)
+        .join("circle")
+        .attr("class", "city")
+        .attr("cx", d => projection([d.lon, d.lat])[0])
+        .attr("cy", d => projection([d.lon, d.lat])[1])
+        .attr("r", d => radiusScale(d.pop))
+        .on("mouseover", (event, d) => {
+          tooltip.style("opacity", 1)
+            .html(`<strong>${d.name}</strong><br>Population: ${d.pop} Million`);
+        })
+        .on("mousemove", event => {
+          tooltip.style("left", (event.pageX + 10) + "px").style("top", (event.pageY - 28) + "px");
+        })
+        .on("mouseout", () => tooltip.style("opacity", 0));
+
+      // Labels for cities > 1 Million
+      svg.selectAll("text")
+        .data(cities.filter(d => d.pop > 1.0))
+        .join("text")
+        .attr("class", "city-label")
+        .attr("x", d => projection([d.lon, d.lat])[0] + 8)
+        .attr("y", d => projection([d.lon, d.lat])[1] + 3)
+        .text(d => d.name);
+    });
+  </script>
+</body>
+</html>

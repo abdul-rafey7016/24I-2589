@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Task 2 - University Structure Dendrogram</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    .link { fill: none; stroke: #ccc; stroke-width: 1.5px; }
+    .node circle { cursor: pointer; stroke: #fff; stroke-width: 1.5px; }
+    .node text { font: 12px sans-serif; }
+  </style>
+</head>
+<body>
+  <h2>University Structure Dendrogram</h2>
+  <div id="dendrogram"></div>
+
+  <script>
+    const margin = {top: 20, right: 150, bottom: 20, left: 100},
+          width = 800 - margin.left - margin.right,
+          height = 500 - margin.top - margin.bottom;
+
+    const svg = d3.select("#dendrogram").append("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom)
+      .append("g")
+        .attr("transform", `translate(${margin.left},${margin.top})`);
+
+    let root;
+    const tree = d3.cluster().size([height, width]);
+    const depthColors = ["#1f77b4", "#ff7f0e", "#2ca02c"];
+
+    d3.csv("dataset/university.csv").then(data => {
+      const grouped = d3.group(data, d => d.department);
+      const rootData = { name: "University", children: Array.from(grouped, ([key, value]) => ({ name: key, children: value.map(c => ({ name: c.course })) })) };
+
+      root = d3.hierarchy(rootData);
+      root.x0 = height / 2;
+      root.y0 = 0;
+
+      update(root);
+    });
+
+    function update(source) {
+      const treeData = tree(root);
+      const nodes = treeData.descendants();
+      const links = treeData.links();
+
+      nodes.forEach(d => { d.y = d.depth * 200; });
+
+      // Nodes
+      const node = svg.selectAll('g.node')
+        .data(nodes, d => d.id || (d.id = Math.random()));
+
+      const nodeEnter = node.enter().append('g')
+        .attr('class', 'node')
+        .attr("transform", d => `translate(${source.y0},${source.x0})`)
+        .on('click', (event, d) => {
+          if (d.children) {
+            d._children = d.children;
+            d.children = null;
+          } else {
+            d.children = d._children;
+            d._children = null;
+          }
+          update(d);
+        });
+
+      nodeEnter.append('circle')
+        .attr('r', 6)
+        .attr('fill', d => depthColors[d.depth] || "#999");
+
+      nodeEnter.append('text')
+        .attr('dy', '.35em')
+        .attr('x', d => d.children || d._children ? -10 : 10)
+        .attr('text-anchor', d => d.children || d._children ? 'end' : 'start')
+        .text(d => d.data.name);
+
+      const nodeUpdate = nodeEnter.merge(node);
+
+      nodeUpdate.transition().duration(500)
+        .attr("transform", d => `translate(${d.y},${d.x})`);
+
+      node.exit().transition().duration(500)
+        .attr("transform", d => `translate(${source.y},${source.x})`)
+        .remove();
+
+      // Links
+      const link = svg.selectAll('path.link')
+        .data(links, d => d.target.id);
+
+      const linkEnter = link.enter().insert('path', "g")
+        .attr("class", "link")
+        .attr('d', d => {
+          const o = {x: source.x0, y: source.y0};
+          return d3.linkHorizontal()({source: o, target: o});
+        });
+
+      const linkUpdate = linkEnter.merge(link);
+
+      linkUpdate.transition().duration(500)
+        .attr('d', d3.linkHorizontal().x(d => d.y).y(d => d.x));
+
+      link.exit().transition().duration(500)
+        .attr('d', d => {
+          const o = {x: source.x, y: source.y};
+          return d3.linkHorizontal()({source: o, target: o});
+        })
+        .remove();
+
+      nodes.forEach(d => {
+        d.x0 = d.x;
+        d.y0 = d.y;
+      });
+    }
+  </script>
+</body>
+</html>

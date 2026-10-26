@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Task 4 - World Population Choropleth</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    .country { stroke: #fff; stroke-width: 0.5px; }
+    .country:hover { stroke: #000; stroke-width: 1.5px; }
+    .tooltip {
+      position: absolute; padding: 6px; font: 12px sans-serif;
+      background: rgba(0,0,0,0.8); color: white; border-radius: 4px;
+      pointer-events: none; opacity: 0;
+    }
+  </style>
+</head>
+<body>
+  <h2>World Population Choropleth Map</h2>
+  <div id="map"></div>
+  <div class="tooltip" id="tooltip"></div>
+
+  <script>
+    const width = 900, height = 500;
+    const svg = d3.select("#map").append("svg").attr("width", width).attr("height", height);
+    const tooltip = d3.select("#tooltip");
+
+    const projection = d3.geoNaturalEarth1().scale(160).translate([width / 2, height / 2]);
+    const pathGenerator = d3.geoPath().projection(projection);
+
+    Promise.all([
+      d3.json("https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson"),
+      d3.csv("dataset/population.csv", d3.autoType)
+    ]).then(([geojson, popData]) => {
+      const popMap = new Map(popData.map(d => [d.id, d.population_millions]));
+
+      const maxPop = d3.max(popData, d => d.population_millions);
+      const colorScale = d3.scaleSequential(d3.interpolateBlues)
+        .domain([0, Math.sqrt(maxPop)]);
+
+      svg.append("g")
+        .selectAll("path")
+        .data(geojson.features)
+        .join("path")
+        .attr("class", "country")
+        .attr("d", pathGenerator)
+        .attr("fill", d => {
+          const val = popMap.get(d.id);
+          return val ? colorScale(Math.sqrt(val)) : "#ccc";
+        })
+        .on("mouseover", (event, d) => {
+          const val = popMap.get(d.id);
+          tooltip.style("opacity", 1)
+            .html(`<strong>${d.properties.name}</strong><br>Population: ${val ? val + "M" : "N/A"}`);
+        })
+        .on("mousemove", event => {
+          tooltip.style("left", (event.pageX + 10) + "px").style("top", (event.pageY - 28) + "px");
+        })
+        .on("mouseout", () => tooltip.style("opacity", 0));
+    });
+  </script>
+</body>
+</html>
