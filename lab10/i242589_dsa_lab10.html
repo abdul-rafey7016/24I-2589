@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lab 10 — Capital Air Quality 2025 (Time Series Analysis)</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --border: #e2e8f0;
+      --text: #0f172a;
+      --muted: #475569;
+      --accent: #1d4ed8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    header {
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 1.4rem 2rem;
+      border-bottom: 4px solid var(--accent);
+    }
+    header .header-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+    }
+    header h1 { margin: 0 0 0.2rem; font-size: 1.42rem; }
+    header p { margin: 0; color: #cbd5e1; font-size: 0.9rem; }
+    .controls { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+    .badge {
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #93c5fd;
+      padding: 0.35rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      font-weight: 600;
+    }
+    .file-btn {
+      background: var(--accent);
+      color: #fff;
+      padding: 0.42rem 0.85rem;
+      border-radius: 6px;
+      font-size: 0.84rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .file-btn:hover { background: #1e40af; }
+
+    main {
+      max-width: 1200px;
+      margin: 1.5rem auto 3rem;
+      padding: 0 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem 1.5rem;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+    }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    .task-tag {
+      display: inline-block;
+      background: #eff6ff;
+      color: var(--accent);
+      font-weight: 700;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 0.15rem 0.55rem;
+      border-radius: 4px;
+      margin-bottom: 0.25rem;
+    }
+    .card h2 { margin: 0; font-size: 1.12rem; color: var(--text); }
+    .subtitle { margin: 0.25rem 0 0; font-size: 0.9rem; color: var(--muted); }
+    .subtitle strong { color: var(--text); }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 0.85rem;
+      margin: 0.85rem 0;
+    }
+    .kpi-box {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+    }
+    .kpi-label { font-size: 0.76rem; color: var(--muted); text-transform: uppercase; font-weight: 600; }
+    .kpi-val { font-size: 1.32rem; font-weight: 700; color: var(--text); margin-top: 0.15rem; }
+    .observation-box {
+      background: #fefce8;
+      border-left: 4px solid #eab308;
+      padding: 0.75rem 1rem;
+      border-radius: 0 6px 6px 0;
+      font-size: 0.92rem;
+      color: #422006;
+    }
+
+    svg { width: 100%; height: auto; display: block; overflow: visible; }
+    .axis text { font-size: 11px; fill: #475569; }
+    .axis path, .axis line { stroke: #cbd5e1; }
+    .grid line { stroke: #f1f5f9; stroke-dasharray: 2,2; }
+    .grid path { stroke: none; }
+
+    .legend-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: center;
+      font-size: 0.83rem;
+      color: var(--muted);
+    }
+    .legend-item { display: inline-flex; align-items: center; gap: 0.35rem; }
+    .legend-swatch { width: 13px; height: 13px; border-radius: 3px; display: inline-block; }
+
+    button.reset-btn {
+      background: #0f172a;
+      color: #fff;
+      border: none;
+      padding: 0.45rem 0.9rem;
+      border-radius: 6px;
+      font-size: 0.83rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button.reset-btn:hover { background: #334155; }
+
+    #tooltip {
+      position: fixed;
+      pointer-events: none;
+      background: rgba(15, 23, 42, 0.95);
+      color: #f8fafc;
+      padding: 0.55rem 0.8rem;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      line-height: 1.4;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+      opacity: 0;
+      transition: opacity 0.1s ease;
+      z-index: 999;
+      max-width: 270px;
+    }
+
+    .qa-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 1rem;
+      margin-top: 0.75rem;
+    }
+    .qa-item {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.9rem 1rem;
+      font-size: 0.89rem;
+    }
+    .qa-item h3 { margin: 0 0 0.35rem; font-size: 0.95rem; color: var(--accent); }
+    .qa-item p { margin: 0; color: #1e293b; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div>
+      <h1>Capital Air Quality Analysis (2025) — Smog Action Briefing</h1>
+      <p>City Environment Office &bull; Daily PM<sub>2.5</sub> (&mu;g/m&sup3;) Time Series Dashboard</p>
+    </div>
+    <div class="controls">
+      <span id="data-source-badge" class="badge">Loading air_quality_2025.csv...</span>
+      <label class="file-btn">
+        Select CSV File
+        <input type="file" id="csv-file-input" accept=".csv" hidden />
+      </label>
+    </div>
+  </div>
+</header>
+
+<main>
+  <!-- TASK 1 -->
+  <section class="card" id="task1">
+    <div class="card-header">
+      <div>
+        <span class="task-tag">Task 1 &bull; Data Audit</span>
+        <h2>Row Count, Date Coverage &amp; Missing Data Check</h2>
+      </div>
+    </div>
+    <div class="kpi-grid" id="task1-kpis"></div>
+    <div class="observation-box" id="task1-observation"></div>
+  </section>
+
+  <!-- TASK 2 -->
+  <section class="card" id="task2">
+    <div class="card-header">
+      <div>
+        <span class="task-tag">Task 2 &bull; Line Chart</span>
+        <h2>How did PM<sub>2.5</sub> in the city centre change through 2025?</h2>
+        <p class="subtitle" id="task2-subtitle">Calculating guideline exceedances...</p>
+      </div>
+      <div class="legend-bar">
+        <span class="legend-item"><span class="legend-swatch" style="background:#1d4ed8"></span>Daily City PM<sub>2.5</sub></span>
+        <span class="legend-item"><span class="legend-swatch" style="background:#16a34a"></span>WHO Guideline (15 &mu;g/m&sup3;)</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:#dc2626"></span>WHO Interim Target 1 (75 &mu;g/m&sup3;)</span>
+      </div>
+    </div>
+    <div id="chart-task2"></div>
+  </section>
+
+  <!-- TASK 3 -->
+  <section class="card" id="task3">
+    <div class="card-header">
+      <div>
+        <span class="task-tag">Task 3 &bull; Area Chart</span>
+        <h2>How quickly did unhealthy days (&gt; 75 &mu;g/m&sup3;) build up during the year?</h2>
+        <p class="subtitle" id="task3-subtitle">Cumulative running total of unhealthy days</p>
+      </div>
+    </div>
+    <div id="chart-task3"></div>
+  </section>
+
+  <!-- TASK 4 -->
+  <section class="card" id="task4">
+    <div class="card-header">
+      <div>
+        <span class="task-tag">Task 4 &bull; Multi-Line Chart</span>
+        <h2>Does the suburb behave like the city centre?</h2>
+        <p class="subtitle">Daily PM<sub>2.5</sub> comparison between City Centre and Suburb monitoring stations</p>
+      </div>
+      <div class="legend-bar">
+        <span class="legend-item"><span class="legend-swatch" style="background:#dc2626"></span>City Centre</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:#0d9488"></span>Suburb</span>
+      </div>
+    </div>
+    <div id="chart-task4"></div>
+  </section>
+
+  <!-- TASK 5 -->
+  <section class="card" id="task5">
+    <div class="card-header">
+      <div>
+        <span class="task-tag">Task 5 &bull; Stacked Composition</span>
+        <h2>In each month, how are the days split between pollution levels?</h2>
+        <p class="subtitle">Low (&le;35), Moderate (36–75), High (76–150), Severe (&gt;150 &mu;g/m&sup3;)</p>
+      </div>
+      <div class="legend-bar">
+        <span class="legend-item"><span class="legend-swatch" style="background:#fef0d9;border:1px solid #cbd5e1"></span>Low (&le;35)</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:#fdbb84"></span>Moderate (36–75)</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:#e34a33"></span>High (76–150)</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:#7f0000"></span>Severe (&gt;150)</span>
+      </div>
+    </div>
+    <div id="chart-task5"></div>
+  </section>
+
+  <!-- TASK 6 -->
+  <section class="card" id="task6">
+    <div class="card-header">
+      <div>
+        <span class="task-tag">Task 6 &bull; Heatmap</span>
+        <h2>Is pollution tied to the day of the week, the month, or both?</h2>
+        <p class="subtitle">Average city centre PM<sub>2.5</sub> (&mu;g/m&sup3;) by Month &times; Day of Week</p>
+      </div>
+      <div id="legend-task6"></div>
+    </div>
+    <div id="chart-task6"></div>
+  </section>
+
+  <!-- TASK 7 -->
+  <section class="card" id="task7">
+    <div class="card-header">
+      <div>
+        <span class="task-tag">Task 7 &bull; Band Chart</span>
+        <h2>How wide is the gap between the best and worst day in each month?</h2>
+        <p class="subtitle" id="task7-subtitle">Shaded Min–Max range with Monthly Mean line</p>
+      </div>
+      <div class="legend-bar">
+        <span class="legend-item"><span class="legend-swatch" style="background:rgba(29,78,216,0.22);border:1px solid #93c5fd"></span>Min–Max Spread</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:#1e3a8a"></span>Monthly Mean</span>
+      </div>
+    </div>
+    <div id="chart-task7"></div>
+  </section>
+
+  <!-- TASK 8 -->
+  <section class="card" id="task8">
+    <div class="card-header">
+      <div>
+        <span class="task-tag">Task 8 &bull; Moving Average &amp; Data Quality</span>
+        <h2>What is the trend once daily noise is removed, and was the sensor working all year?</h2>
+        <p class="subtitle" id="task8-subtitle">Daily values vs. 7-day trailing moving average (broken at sensor outage)</p>
+      </div>
+      <div class="legend-bar">
+        <span class="legend-item"><span class="legend-swatch" style="background:#94a3b8"></span>Daily PM<sub>2.5</sub> (noise)</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:#0f172a"></span>7-Day Moving Average</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:rgba(239,68,68,0.18);border:1px solid #fca5a5"></span>Sensor Offline Gap</span>
+      </div>
+    </div>
+    <div id="chart-task8"></div>
+  </section>
+
+  <!-- TASK 9 -->
+  <section class="card" id="task9">
+    <div class="card-header">
+      <div>
+        <span class="task-tag">Task 9 &bull; Interactive Brush &amp; Zoom</span>
+        <h2>Can the Director pick any period and look at it closely?</h2>
+        <p class="subtitle" id="task9-subtitle">Drag across the bottom timeline to zoom into any date window</p>
+      </div>
+      <button class="reset-btn" id="reset-brush-btn">Reset Full Year</button>
+    </div>
+    <div id="chart-task9"></div>
+  </section>
+
+  <!-- DIRECTOR BRIEFING Q&A -->
+  <section class="card" id="director-qa">
+    <div class="card-header">
+      <div>
+        <span class="task-tag">Presentation Demo Guide</span>
+        <h2>Answers to Questions for the Director</h2>
+        <p class="subtitle">Computed directly from <code>air_quality_2025.csv</code> and linked to each chart.</p>
+      </div>
+    </div>
+    <div class="qa-grid" id="qa-container"></div>
+  </section>
+</main>
+
+<div id="tooltip"></div>
+
+<script>
+(function () {
+  const parseDate = d3.timeParse("%Y-%m-%d");
+  const fmtDate = d3.timeFormat("%Y-%m-%d");
+  const fmtNice = d3.timeFormat("%d %b %Y");
+  const fmtShort = d3.timeFormat("%d %b");
+  const monthsOrder = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const weekdaysOrder = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  const tooltip = d3.select("#tooltip");
+
+  function showTooltip(html, event) {
+    tooltip
+      .html(html)
+      .style("opacity", 1)
+      .style("left", Math.min(window.innerWidth - 280, event.clientX + 14) + "px")
+      .style("top", Math.max(10, event.clientY - 28) + "px");
+  }
+  function hideTooltip() {
+    tooltip.style("opacity", 0);
+  }
+
+  function processAndRender(rawRows, sourceLabel) {
+    d3.select("#data-source-badge").text(sourceLabel);
+
+    // Parse and deduplicate by date so clean daily series is guaranteed
+    const seenDates = new Set();
+    const validRows = [];
+    rawRows.forEach(r => {
+      const ds = (r.date || "").trim();
+      const d = parseDate(ds);
+      const city = r.pm25_city === "" || r.pm25_city == null ? NaN : +r.pm25_city;
+      const suburb = r.pm25_suburb === "" || r.pm25_suburb == null ? NaN : +r.pm25_suburb;
+      const temp = r.temp_c === "" || r.temp_c == null ? NaN : +r.temp_c;
+      if (d && !isNaN(city) && !seenDates.has(ds)) {
+        seenDates.add(ds);
+        validRows.push({ date: d, dateStr: ds, pm25_city: city, pm25_suburb: suburb, temp_c: temp });
+      }
+    });
+    validRows.sort((a, b) => d3.ascending(a.date, b.date));
+
+    const byDate = new Map(validRows.map(d => [d.dateStr, d]));
+
+    // Full 365-day 2025 calendar grid with explicit missing markers
+    const all2025Days = d3.timeDays(new Date(2025, 0, 1), new Date(2026, 0, 1)).map(d => {
+      const ds = fmtDate(d);
+      const rec = byDate.get(ds);
+      return rec
+        ? { ...rec, missing: false }
+        : { date: d, dateStr: ds, pm25_city: null, pm25_suburb: null, temp_c: null, missing: true };
+    });
+
+    // Detect gaps with d3.timeDay.count
+    const gaps = [];
+    for (let i = 1; i < validRows.length; i++) {
+      const diff = d3.timeDay.count(validRows[i - 1].date, validRows[i].date);
+      if (diff > 1) {
+        gaps.push({
+          prevDate: validRows[i - 1].date,
+          nextDate: validRows[i].date,
+          firstMissing: d3.timeDay.offset(validRows[i - 1].date, 1),
+          lastMissing: d3.timeDay.offset(validRows[i].date, -1),
+          missingCount: diff - 1
+        });
+      }
+    }
+    const totalMissingDays = 365 - validRows.length;
+
+    // 7-day trailing moving average (breaks cleanly at missing gap; never averages across it)
+    all2025Days.forEach((d, idx) => {
+      if (d.missing) {
+        d.ma7 = null;
+        return;
+      }
+      const win = [];
+      for (let k = 0; k < 7 && idx - k >= 0; k++) {
+        const cand = all2025Days[idx - k];
+        if (cand.missing) break;
+        win.push(cand.pm25_city);
+      }
+      d.ma7 = d3.mean(win);
+    });
+
+    // =========================================================================
+    // TASK 1: Row Count, First/Last Dates & Missing Data Comparison
+    // =========================================================================
+    const [firstDate, lastDate] = d3.extent(validRows, d => d.date);
+    const gapText = gaps.length
+      ? gaps.map(g => `${fmtDate(g.firstMissing)} to ${fmtDate(g.lastMissing)} (${g.missingCount} days)`).join("; ")
+      : "None";
+
+    d3.select("#task1-kpis").html(`
+      <div class="kpi-box"><div class="kpi-label">Recorded Rows</div><div class="kpi-val">${validRows.length}</div></div>
+      <div class="kpi-box"><div class="kpi-label">Calendar Days in 2025</div><div class="kpi-val">365</div></div>
+      <div class="kpi-box"><div class="kpi-label">Missing Days</div><div class="kpi-val" style="color:#dc2626">${totalMissingDays}</div></div>
+      <div class="kpi-box"><div class="kpi-label">First Date</div><div class="kpi-val">${fmtDate(firstDate)}</div></div>
+      <div class="kpi-box"><div class="kpi-label">Last Date</div><div class="kpi-val">${fmtDate(lastDate)}</div></div>
+    `);
+
+    d3.select("#task1-observation").html(`
+      <strong>Observation:</strong> 2025 is a non-leap year with <strong>365 days</strong> (${fmtDate(firstDate)} to ${fmtDate(lastDate)}),
+      but <code>air_quality_2025.csv</code> contains <strong>${validRows.length} rows</strong>—<strong>${totalMissingDays} days are missing</strong>
+      during a sensor outage from <strong>${gapText}</strong>. Using <code>d3.scaleTime()</code> preserves true calendar spacing and prevents
+      misleading jumps across the gap.
+    `);
+
+    // =========================================================================
+    // TASK 2: Daily City PM2.5 Line Chart + Reference Lines + Top 2 Peaks
+    // =========================================================================
+    const above15 = validRows.filter(d => d.pm25_city > 15).length;
+    const above75 = validRows.filter(d => d.pm25_city > 75).length;
+    const pct15 = ((above15 / validRows.length) * 100).toFixed(2);
+    const pct75 = ((above75 / validRows.length) * 100).toFixed(2);
+
+    d3.select("#task2-subtitle").html(
+      `Days above 15 &mu;g/m&sup3; (WHO Guideline): <strong>${above15} of ${validRows.length} (${pct15}%)</strong> &nbsp;|&nbsp; ` +
+      `Days above 75 &mu;g/m&sup3; (WHO Interim Target 1): <strong>${above75} of ${validRows.length} (${pct75}%)</strong>`
+    );
+
+    const top2 = [...validRows].sort((a, b) => d3.descending(a.pm25_city, b.pm25_city)).slice(0, 2);
+
+    (function renderTask2() {
+      const container = d3.select("#chart-task2").html("");
+      const width = 1100, height = 340;
+      const margin = { top: 24, right: 35, bottom: 34, left: 54 };
+      const svg = container.append("svg").attr("viewBox", `0 0 ${width} ${height}`);
+
+      const x = d3.scaleTime().domain([new Date(2025, 0, 1), new Date(2025, 11, 31)]).range([margin.left, width - margin.right]);
+      const y = d3.scaleLinear().domain([0, d3.max(validRows, d => d.pm25_city) * 1.12]).nice().range([height - margin.bottom, margin.top]);
+
+      svg.append("g").attr("class", "grid").attr("transform", `translate(${margin.left},0)`)
+        .call(d3.axisLeft(y).ticks(6).tickSize(-(width - margin.left - margin.right)).tickFormat(""));
+      svg.append("g").attr("class", "axis").attr("transform", `translate(0,${height - margin.bottom})`)
+        .call(d3.axisBottom(x).ticks(d3.timeMonth.every(1)).tickFormat(d3.timeFormat("%b")));
+      svg.append("g").attr("class", "axis").attr("transform", `translate(${margin.left},0)`)
+        .call(d3.axisLeft(y).ticks(6));
+
+      svg.append("text").attr("transform", "rotate(-90)").attr("x", -(height / 2)).attr("y", 15)
+        .attr("text-anchor", "middle").attr("font-size", 11).attr("fill", "#475569").text("PM2.5 (µg/m³)");
+
+      [
+        { val: 15, color: "#16a34a", label: "WHO Guideline: 15 µg/m³", dy: -5 },
+        { val: 75, color: "#dc2626", label: "WHO Interim Target 1: 75 µg/m³", dy: -6 }
+      ].forEach(ref => {
+        svg.append("line").attr("x1", margin.left).attr("x2", width - margin.right)
+          .attr("y1", y(ref.val)).attr("y2", y(ref.val))
+          .attr("stroke", ref.color).attr("stroke-width", 1.5).attr("stroke-dasharray", "6,4");
+        svg.append("text").attr("x", margin.left + 8).attr("y", y(ref.val) + ref.dy)
+          .attr("fill", ref.color).attr("font-size", 11).attr("font-weight", 700).text(ref.label);
+      });
+
+      const line = d3.line().defined(d => !d.missing).x(d => x(d.date)).y(d => y(d.pm25_city));
+      svg.append("path").datum(all2025Days).attr("fill", "none").attr("stroke", "#1d4ed8").attr("stroke-width", 1.75).attr("d", line);
+
+      top2.forEach(pt => {
+        const cx = x(pt.date), cy = y(pt.pm25_city);
+        svg.append("circle").attr("cx", cx).attr("cy", cy).attr("r", 5).attr("fill", "#dc2626").attr("stroke", "#fff").attr("stroke-width", 1.5);
+        const anchor = cx > width - 170 ? "end" : "start";
+        svg.append("text").attr("x", cx + (anchor === "end" ? -8 : 8)).attr("y", cy - 6)
+          .attr("text-anchor", anchor).attr("font-size", 11).attr("font-weight", 700).attr("fill", "#991b1b")
+          .text(`${fmtShort(pt.date)}: ${pt.pm25_city.toFixed(1)} µg/m³`);
+      });
+
+      const bisect = d3.bisector(d => d.date).center;
+      const hoverDot = svg.append("circle").attr("r", 4.5).attr("fill", "#1d4ed8").style("opacity", 0);
+      svg.append("rect").attr("x", margin.left).attr("y", margin.top)
+        .attr("width", width - margin.left - margin.right).attr("height", height - margin.top - margin.bottom).attr("fill", "transparent")
+        .on("mousemove", function (event) {
+          const d = all2025Days[bisect(all2025Days, x.invert(d3.pointer(event)[0]))];
+          if (!d || d.missing) {
+            hoverDot.style("opacity", 0);
+            showTooltip(`<strong>${d ? fmtNice(d.date) : ""}</strong><br/>Sensor offline (No data)`, event);
+            return;
+          }
+          hoverDot.style("opacity", 1).attr("cx", x(d.date)).attr("cy", y(d.pm25_city));
+          showTooltip(`<strong>${fmtNice(d.date)}</strong><br/>City PM<sub>2.5</sub>: <b>${d.pm25_city.toFixed(1)} µg/m³</b>`, event);
+        })
+        .on("mouseleave", () => { hoverDot.style("opacity", 0); hideTooltip(); });
+    })();
+
+    // =========================================================================
+    // TASK 3: Cumulative Unhealthy Days (> 75 µg/m³) Filled Area Chart
+    // =========================================================================
+    let running = 0;
+    const cumData = all2025Days.map(d => {
+      if (!d.missing && d.pm25_city > 75) running += 1;
+      return { ...d, cumUnhealthy: running };
+    });
+    const finalCum = cumData[cumData.length - 1].cumUnhealthy;
+    d3.select("#task3-subtitle").html(
+      `Cumulative unhealthy days (&gt; 75 &mu;g/m&sup3;) by Dec 31: <strong>${finalCum} days</strong> (matches Task 2 count: ${above75})`
+    );
+
+    (function renderTask3() {
+      const container = d3.select("#chart-task3").html("");
+      const width = 1100, height = 290;
+      const margin = { top: 22, right: 65, bottom: 34, left: 54 };
+      const svg = container.append("svg").attr("viewBox", `0 0 ${width} ${height}`);
+
+      const x = d3.scaleTime().domain([new Date(2025, 0, 1), new Date(2025, 11, 31)]).range([margin.left, width - margin.right]);
+      const y = d3.scaleLinear().domain([0, finalCum * 1.12]).nice().range([height - margin.bottom, margin.top]);
+
+      svg.append("g").attr("class", "grid").attr("transform", `translate(${margin.left},0)`)
+        .call(d3.axisLeft(y).ticks(5).tickSize(-(width - margin.left - margin.right)).tickFormat(""));
+      svg.append("g").attr("class", "axis").attr("transform", `translate(0,${height - margin.bottom})`)
+        .call(d3.axisBottom(x).ticks(d3.timeMonth.every(1)).tickFormat(d3.timeFormat("%b")));
+      svg.append("g").attr("class", "axis").attr("transform", `translate(${margin.left},0)`)
+        .call(d3.axisLeft(y).ticks(5));
+
+      svg.append("text").attr("transform", "rotate(-90)").attr("x", -(height / 2)).attr("y", 15)
+        .attr("text-anchor", "middle").attr("font-size", 11).attr("fill", "#475569").text("Cumulative Days > 75 µg/m³");
+
+      svg.append("path").datum(cumData).attr("fill", "rgba(220, 38, 38, 0.22)")
+        .attr("d", d3.area().x(d => x(d.date)).y0(y(0)).y1(d => y(d.cumUnhealthy)));
+      svg.append("path").datum(cumData).attr("fill", "none").attr("stroke", "#dc2626").attr("stroke-width", 2.2)
+        .attr("d", d3.line().x(d => x(d.date)).y(d => y(d.cumUnhealthy)));
+
+      const lastPt = cumData[cumData.length - 1];
+      svg.append("circle").attr("cx", x(lastPt.date)).attr("cy", y(lastPt.cumUnhealthy)).attr("r", 4.5).attr("fill", "#991b1b");
+      svg.append("text").attr("x", x(lastPt.date) + 7).attr("y", y(lastPt.cumUnhealthy) + 4)
+        .attr("font-size", 11).attr("font-weight", 700).attr("fill", "#991b1b").text(`${finalCum} days`);
+
+      const bisect = d3.bisector(d => d.date).center;
+      const dot = svg.append("circle").attr("r", 4).attr("fill", "#dc2626").style("opacity", 0);
+      svg.append("rect").attr("x", margin.left).attr("y", margin.top)
+        .attr("width", width - margin.left - margin.right).attr("height", height - margin.top - margin.bottom).attr("fill", "transparent")
+        .on("mousemove", function (event) {
+          const d = cumData[bisect(cumData, x.invert(d3.pointer(event)[0]))];
+          dot.style("opacity", 1).attr("cx", x(d.date)).attr("cy", y(d.cumUnhealthy));
+          showTooltip(`<strong>${fmtNice(d.date)}</strong><br/>Cumulative unhealthy days: <b>${d.cumUnhealthy}</b>`, event);
+        })
+        .on("mouseleave", () => { dot.style("opacity", 0); hideTooltip(); });
+    })();
+
+    // =========================================================================
+    // TASK 4: Multi-Line Chart (City Centre vs Suburb)
+    // =========================================================================
+    (function renderTask4() {
+      const container = d3.select("#chart-task4").html("");
+      const width = 1100, height = 320;
+      const margin = { top: 20, right: 35, bottom: 34, left: 54 };
+      const svg = container.append("svg").attr("viewBox", `0 0 ${width} ${height}`);
+
+      const x = d3.scaleTime().domain([new Date(2025, 0, 1), new Date(2025, 11, 31)]).range([margin.left, width - margin.right]);
+      const y = d3.scaleLinear().domain([0, d3.max(validRows, d => Math.max(d.pm25_city, d.pm25_suburb || 0)) * 1.1]).nice().range([height - margin.bottom, margin.top]);
+
+      svg.append("g").attr("class", "grid").attr("transform", `translate(${margin.left},0)`)
+        .call(d3.axisLeft(y).ticks(6).tickSize(-(width - margin.left - margin.right)).tickFormat(""));
+      svg.append("g").attr("class", "axis").attr("transform", `translate(0,${height - margin.bottom})`)
+        .call(d3.axisBottom(x).ticks(d3.timeMonth.every(1)).tickFormat(d3.timeFormat("%b")));
+      svg.append("g").attr("class", "axis").attr("transform", `translate(${margin.left},0)`)
+        .call(d3.axisLeft(y).ticks(6));
+
+      svg.append("text").attr("transform", "rotate(-90)").attr("x", -(height / 2)).attr("y", 15)
+        .attr("text-anchor", "middle").attr("font-size", 11).attr("fill", "#475569").text("PM2.5 (µg/m³)");
+
+      svg.append("path").datum(all2025Days).attr("fill", "none").attr("stroke", "#dc2626").attr("stroke-width", 1.7)
+        .attr("d", d3.line().defined(d => !d.missing).x(d => x(d.date)).y(d => y(d.pm25_city)));
+      svg.append("path").datum(all2025Days).attr("fill", "none").attr("stroke", "#0d9488").attr("stroke-width", 1.7)
+        .attr("d", d3.line().defined(d => !d.missing && !isNaN(d.pm25_suburb)).x(d => x(d.date)).y(d => y(d.pm25_suburb)));
+
+      const bisect = d3.bisector(d => d.date).center;
+      const vLine = svg.append("line").attr("y1", margin.top).attr("y2", height - margin.bottom).attr("stroke", "#94a3b8").attr("stroke-dasharray", "3,3").style("opacity", 0);
+      svg.append("rect").attr("x", margin.left).attr("y", margin.top)
+        .attr("width", width - margin.left - margin.right).attr("height", height - margin.top - margin.bottom).attr("fill", "transparent")
+        .on("mousemove", function (event) {
+          const d = all2025Days[bisect(all2025Days, x.invert(d3.pointer(event)[0]))];
+          if (!d || d.missing) {
+            vLine.style("opacity", 0);
+            showTooltip(`<strong>${d ? fmtNice(d.date) : ""}</strong><br/>Sensor offline`, event);
+            return;
+          }
+          vLine.style("opacity", 1).attr("x1", x(d.date)).attr("x2", x(d.date));
+          const diff = (d.pm25_city - d.pm25_suburb).toFixed(1);
+          showTooltip(
+            `<strong>${fmtNice(d.date)}</strong><br/>City: <b>${d.pm25_city.toFixed(1)} µg/m³</b><br/>Suburb: <b>${d.pm25_suburb.toFixed(1)} µg/m³</b><br/>Gap: <b>+${diff} µg/m³</b>`,
+            event
+          );
+        })
+        .on("mouseleave", () => { vLine.style("opacity", 0); hideTooltip(); });
+    })();
+
+    // =========================================================================
+    // TASK 5: Monthly Stacked Bar Chart (d3.stack)
+    // =========================================================================
+    const levels = ["Low", "Moderate", "High", "Severe"];
+    const levelColors = { Low: "#fef0d9", Moderate: "#fdbb84", High: "#e34a33", Severe: "#7f0000" };
+    const getLevel = v => (v <= 35 ? "Low" : v <= 75 ? "Moderate" : v <= 150 ? "High" : "Severe");
+
+    const monthlyCounts = monthsOrder.map((mName, mIdx) => {
+      const mRows = validRows.filter(d => d.date.getMonth() === mIdx);
+      const counts = { month: mName, Low: 0, Moderate: 0, High: 0, Severe: 0, total: mRows.length };
+      mRows.forEach(r => { counts[getLevel(r.pm25_city)] += 1; });
+      return counts;
+    });
+
+    (function renderTask5() {
+      const container = d3.select("#chart-task5").html("");
+      const width = 1100, height = 330;
+      const margin = { top: 26, right: 30, bottom: 38, left: 54 };
+      const svg = container.append("svg").attr("viewBox", `0 0 ${width} ${height}`);
+
+      const x = d3.scaleBand().domain(monthsOrder).range([margin.left, width - margin.right]).padding(0.28);
+      const y = d3.scaleLinear().domain([0, 34]).range([height - margin.bottom, margin.top]);
+
+      svg.append("g").attr("class", "axis").attr("transform", `translate(0,${height - margin.bottom})`).call(d3.axisBottom(x));
+      svg.append("g").attr("class", "axis").attr("transform", `translate(${margin.left},0)`).call(d3.axisLeft(y).ticks(6));
+
+      svg.append("text").attr("transform", "rotate(-90)").attr("x", -(height / 2)).attr("y", 15)
+        .attr("text-anchor", "middle").attr("font-size", 11).attr("fill", "#475569").text("Recorded Days");
+
+      const stackedSeries = d3.stack().keys(levels)(monthlyCounts);
+      svg.selectAll(".layer").data(stackedSeries).join("g")
+        .attr("fill", d => levelColors[d.key]).attr("stroke", "#94a3b8").attr("stroke-width", 0.5)
+        .selectAll("rect").data(d => d.map(seg => ({ ...seg, key: d.key }))).join("rect")
+        .attr("x", d => x(d.data.month)).attr("y", d => y(d[1]))
+        .attr("height", d => y(d[0]) - y(d[1])).attr("width", x.bandwidth())
+        .on("mousemove", (event, d) => {
+          const m = d.data;
+          showTooltip(
+            `<strong>${m.month} 2025 (${m.total} days)</strong><br/>Severe (&gt;150): <b>${m.Severe}</b><br/>High (76–150): <b>${m.High}</b><br/>Moderate (36–75): <b>${m.Moderate}</b><br/>Low (&le;35): <b>${m.Low}</b>`,
+            event
+          );
+        })
+        .on("mouseleave", hideTooltip);
+
+      svg.selectAll(".bar-total").data(monthlyCounts).join("text")
+        .attr("x", d => x(d.month) + x.bandwidth() / 2).attr("y", d => y(d.total) - 6)
+        .attr("text-anchor", "middle").attr("font-size", 11).attr("font-weight", 700).attr("fill", "#334155")
+        .text(d => `${d.total}d`);
+    })();
+
+    // =========================================================================
+    // TASK 6: Heatmap (Month x Day of Week)
+    // =========================================================================
+    const getMonSunIndex = date => (date.getDay() + 6) % 7;
+    const rolledHeat = d3.rollup(
+      validRows,
+      v => d3.mean(v, d => d.pm25_city),
+      d => monthsOrder[d.date.getMonth()],
+      d => weekdaysOrder[getMonSunIndex(d.date)]
+    );
+    const heatCells = [];
+    monthsOrder.forEach(m => {
+      weekdaysOrder.forEach(w => {
+        heatCells.push({ month: m, weekday: w, value: rolledHeat.get(m)?.get(w) ?? null });
+      });
+    });
+
+    (function renderTask6() {
+      const container = d3.select("#chart-task6").html("");
+      const width = 1100, height = 310;
+      const margin = { top: 14, right: 30, bottom: 34, left: 60 };
+      const svg = container.append("svg").attr("viewBox", `0 0 ${width} ${height}`);
+
+      const x = d3.scaleBand().domain(monthsOrder).range([margin.left, width - margin.right]).padding(0.06);
+      const y = d3.scaleBand().domain(weekdaysOrder).range([margin.top, height - margin.bottom]).padding(0.08);
+      const maxCell = d3.max(heatCells, d => d.value) || 200;
+      const color = d3.scaleSequential(d3.interpolateYlOrRd).domain([0, maxCell]);
+
+      svg.append("g").attr("class", "axis").attr("transform", `translate(0,${height - margin.bottom})`).call(d3.axisBottom(x));
+      svg.append("g").attr("class", "axis").attr("transform", `translate(${margin.left},0)`).call(d3.axisLeft(y));
+
+      svg.selectAll("rect.cell").data(heatCells).join("rect")
+        .attr("x", d => x(d.month)).attr("y", d => y(d.weekday))
+        .attr("width", x.bandwidth()).attr("height", y.bandwidth()).attr("rx", 4)
+        .attr("fill", d => d.value == null ? "#e2e8f0" : color(d.value))
+        .on("mousemove", (event, d) => {
+          showTooltip(`<strong>${d.month} &bull; ${d.weekday}</strong><br/>Avg City PM<sub>2.5</sub>: <b>${d.value != null ? d.value.toFixed(1) + " µg/m³" : "No data"}</b>`, event);
+        })
+        .on("mouseleave", hideTooltip);
+
+      svg.selectAll("text.cell-label").data(heatCells).join("text")
+        .attr("x", d => x(d.month) + x.bandwidth() / 2).attr("y", d => y(d.weekday) + y.bandwidth() / 2 + 4)
+        .attr("text-anchor", "middle").attr("font-size", 11).attr("font-weight", 600)
+        .attr("fill", d => (d.value != null && d.value > maxCell * 0.58) ? "#ffffff" : "#1e293b")
+        .style("pointer-events", "none")
+        .text(d => d.value != null ? Math.round(d.value) : "–");
+
+      const leg = d3.select("#legend-task6").html("");
+      leg.append("span").style("font-size", "0.8rem").style("color", "#475569").text("0 ");
+      const gradSvg = leg.append("svg").attr("width", 140).attr("height", 14).style("display", "inline-block").style("vertical-align", "middle");
+      const lg = gradSvg.append("defs").append("linearGradient").attr("id", "heat-grad");
+      d3.range(0, 1.01, 0.1).forEach(t => lg.append("stop").attr("offset", `${t * 100}%`).attr("stop-color", color(t * maxCell)));
+      gradSvg.append("rect").attr("width", 140).attr("height", 12).attr("rx", 3).attr("fill", "url(#heat-grad)");
+      leg.append("span").style("font-size", "0.8rem").style("color", "#475569").text(` ${Math.round(maxCell)} µg/m³`);
+    })();
+
+    // =========================================================================
+    // TASK 7: Band Chart (Monthly Min, Max, Mean)
+    // =========================================================================
+    const monthlyStats = monthsOrder.map((mName, mIdx) => {
+      const vals = validRows.filter(d => d.date.getMonth() === mIdx).map(d => d.pm25_city);
+      const min = d3.min(vals), max = d3.max(vals), mean = d3.mean(vals);
+      return { month: mName, mIdx, min, max, mean, spread: max - min };
+    });
+    const widestMonth = [...monthlyStats].sort((a, b) => d3.descending(a.spread, b.spread))[0];
+    d3.select("#task7-subtitle").html(
+      `Widest intra-month spread: <strong>${widestMonth.month}</strong> (Min: ${widestMonth.min.toFixed(1)}, Max: ${widestMonth.max.toFixed(1)}, Gap: <strong>${widestMonth.spread.toFixed(1)} &mu;g/m&sup3;</strong>)`
+    );
+
+    (function renderTask7() {
+      const container = d3.select("#chart-task7").html("");
+      const width = 1100, height = 310;
+      const margin = { top: 22, right: 35, bottom: 34, left: 54 };
+      const svg = container.append("svg").attr("viewBox", `0 0 ${width} ${height}`);
+
+      const x = d3.scalePoint().domain(monthsOrder).range([margin.left + 20, width - margin.right - 20]);
+      const y = d3.scaleLinear().domain([0, d3.max(monthlyStats, d => d.max) * 1.1]).nice().range([height - margin.bottom, margin.top]);
+
+      svg.append("g").attr("class", "grid").attr("transform", `translate(${margin.left},0)`)
+        .call(d3.axisLeft(y).ticks(6).tickSize(-(width - margin.left - margin.right)).tickFormat(""));
+      svg.append("g").attr("class", "axis").attr("transform", `translate(0,${height - margin.bottom})`).call(d3.axisBottom(x));
+      svg.append("g").attr("class", "axis").attr("transform", `translate(${margin.left},0)`).call(d3.axisLeft(y).ticks(6));
+
+      svg.append("text").attr("transform", "rotate(-90)").attr("x", -(height / 2)).attr("y", 15)
+        .attr("text-anchor", "middle").attr("font-size", 11).attr("fill", "#475569").text("PM2.5 (µg/m³)");
+
+      svg.append("path").datum(monthlyStats).attr("fill", "rgba(29, 78, 216, 0.2)")
+        .attr("d", d3.area().x(d => x(d.month)).y0(d => y(d.min)).y1(d => y(d.max)).curve(d3.curveMonotoneX));
+      svg.append("path").datum(monthlyStats).attr("fill", "none").attr("stroke", "#1e3a8a").attr("stroke-width", 2.4)
+        .attr("d", d3.line().x(d => x(d.month)).y(d => y(d.mean)).curve(d3.curveMonotoneX));
+
+      svg.selectAll("circle.mean-pt").data(monthlyStats).join("circle")
+        .attr("cx", d => x(d.month)).attr("cy", d => y(d.mean)).attr("r", 4.5).attr("fill", "#1e3a8a")
+        .on("mousemove", (event, d) => {
+          showTooltip(
+            `<strong>${d.month} 2025</strong><br/>Max: <b>${d.max.toFixed(1)} µg/m³</b><br/>Mean: <b>${d.mean.toFixed(1)} µg/m³</b><br/>Min: <b>${d.min.toFixed(1)} µg/m³</b><br/>Spread: <b>${d.spread.toFixed(1)} µg/m³</b>`,
+            event
+          );
+        })
+        .on("mouseleave", hideTooltip);
+    })();
+
+    // =========================================================================
+    // TASK 8: Daily Noise + 7-Day Moving Average + Broken Gap
+    // =========================================================================
+    d3.select("#task8-subtitle").html(
+      `Missing sensor readings: <strong>${totalMissingDays} days</strong> (${gapText}). Lines break at the gap without averaging across it.`
+    );
+
+    (function renderTask8() {
+      const container = d3.select("#chart-task8").html("");
+      const width = 1100, height = 330;
+      const margin = { top: 24, right: 35, bottom: 34, left: 54 };
+      const svg = container.append("svg").attr("viewBox", `0 0 ${width} ${height}`);
+
+      const x = d3.scaleTime().domain([new Date(2025, 0, 1), new Date(2025, 11, 31)]).range([margin.left, width - margin.right]);
+      const y = d3.scaleLinear().domain([0, d3.max(validRows, d => d.pm25_city) * 1.1]).nice().range([height - margin.bottom, margin.top]);
+
+      svg.append("g").attr("class", "grid").attr("transform", `translate(${margin.left},0)`)
+        .call(d3.axisLeft(y).ticks(6).tickSize(-(width - margin.left - margin.right)).tickFormat(""));
+      svg.append("g").attr("class", "axis").attr("transform", `translate(0,${height - margin.bottom})`)
+        .call(d3.axisBottom(x).ticks(d3.timeMonth.every(1)).tickFormat(d3.timeFormat("%b")));
+      svg.append("g").attr("class", "axis").attr("transform", `translate(${margin.left},0)`).call(d3.axisLeft(y).ticks(6));
+
+      svg.append("text").attr("transform", "rotate(-90)").attr("x", -(height / 2)).attr("y", 15)
+        .attr("text-anchor", "middle").attr("font-size", 11).attr("fill", "#475569").text("PM2.5 (µg/m³)");
+
+      gaps.forEach(g => {
+        const gx1 = x(g.prevDate), gx2 = x(g.nextDate);
+        svg.append("rect").attr("x", gx1).attr("y", margin.top)
+          .attr("width", Math.max(4, gx2 - gx1)).attr("height", height - margin.top - margin.bottom)
+          .attr("fill", "rgba(239, 68, 68, 0.16)").attr("stroke", "#fca5a5").attr("stroke-dasharray", "3,2");
+        svg.append("text").attr("x", (gx1 + gx2) / 2).attr("y", margin.top + 16)
+          .attr("text-anchor", "middle").attr("font-size", 11).attr("font-weight", 700).attr("fill", "#b91c1c")
+          .text(`No data: sensor offline (${g.missingCount}d missing)`);
+      });
+
+      svg.append("path").datum(all2025Days).attr("fill", "none").attr("stroke", "#94a3b8").attr("stroke-width", 1)
+        .attr("d", d3.line().defined(d => !d.missing).x(d => x(d.date)).y(d => y(d.pm25_city)));
+      svg.append("path").datum(all2025Days).attr("fill", "none").attr("stroke", "#0f172a").attr("stroke-width", 2.5)
+        .attr("d", d3.line().defined(d => d.ma7 != null).x(d => x(d.date)).y(d => y(d.ma7)));
+
+      const bisect = d3.bisector(d => d.date).center;
+      const vLine = svg.append("line").attr("y1", margin.top).attr("y2", height - margin.bottom).attr("stroke", "#64748b").attr("stroke-dasharray", "3,3").style("opacity", 0);
+      svg.append("rect").attr("x", margin.left).attr("y", margin.top)
+        .attr("width", width - margin.left - margin.right).attr("height", height - margin.top - margin.bottom).attr("fill", "transparent")
+        .on("mousemove", function (event) {
+          const d = all2025Days[bisect(all2025Days, x.invert(d3.pointer(event)[0]))];
+          if (!d || d.missing) {
+            vLine.style("opacity", 0);
+            showTooltip(`<strong>${d ? fmtNice(d.date) : ""}</strong><br/>No data: sensor offline`, event);
+            return;
+          }
+          vLine.style("opacity", 1).attr("x1", x(d.date)).attr("x2", x(d.date));
+          showTooltip(`<strong>${fmtNice(d.date)}</strong><br/>Daily: <b>${d.pm25_city.toFixed(1)} µg/m³</b><br/>7-Day Avg: <b>${d.ma7.toFixed(1)} µg/m³</b>`, event);
+        })
+        .on("mouseleave", () => { vLine.style("opacity", 0); hideTooltip(); });
+    })();
+
+    // =========================================================================
+    // TASK 9: Focus + Context Brushable Zoom Chart
+    // =========================================================================
+    (function renderTask9() {
+      const container = d3.select("#chart-task9").html("");
+      const width = 1100, focusHeight = 250, contextHeight = 68;
+      const margin = { top: 18, right: 35, bottom: 26, left: 54 };
+      const totalHeight = focusHeight + contextHeight + 36;
+
+      const svg = container.append("svg").attr("viewBox", `0 0 ${width} ${totalHeight}`);
+      const fullDomain = [new Date(2025, 0, 1), new Date(2025, 11, 31)];
+
+      const xFocus = d3.scaleTime().domain(fullDomain).range([margin.left, width - margin.right]);
+      const xContext = d3.scaleTime().domain(fullDomain).range([margin.left, width - margin.right]);
+      const yMax = d3.max(validRows, d => d.pm25_city) * 1.1;
+      const yFocus = d3.scaleLinear().domain([0, yMax]).nice().range([focusHeight - margin.bottom, margin.top]);
+      const yContext = d3.scaleLinear().domain([0, yMax]).range([contextHeight - 18, 4]);
+
+      svg.append("defs").append("clipPath").attr("id", "focus-clip")
+        .append("rect").attr("x", margin.left).attr("y", margin.top)
+        .attr("width", width - margin.left - margin.right).attr("height", focusHeight - margin.top - margin.bottom);
+
+      const focusG = svg.append("g");
+      const xAxisFocusG = focusG.append("g").attr("class", "axis").attr("transform", `translate(0,${focusHeight - margin.bottom})`).call(d3.axisBottom(xFocus).ticks(12));
+      focusG.append("g").attr("class", "axis").attr("transform", `translate(${margin.left},0)`).call(d3.axisLeft(yFocus).ticks(5));
+      focusG.append("text").attr("transform", "rotate(-90)").attr("x", -(focusHeight / 2)).attr("y", 15)
+        .attr("text-anchor", "middle").attr("font-size", 11).attr("fill", "#475569").text("PM2.5 (µg/m³)");
+
+      focusG.append("line").attr("x1", margin.left).attr("x2", width - margin.right)
+        .attr("y1", yFocus(75)).attr("y2", yFocus(75)).attr("stroke", "#dc2626").attr("stroke-dasharray", "5,4").attr("stroke-width", 1.2);
+
+      const focusLine = d3.line().defined(d => !d.missing).x(d => xFocus(d.date)).y(d => yFocus(d.pm25_city));
+      const focusPath = focusG.append("g").attr("clip-path", "url(#focus-clip)")
+        .append("path").datum(all2025Days).attr("fill", "none").attr("stroke", "#1d4ed8").attr("stroke-width", 1.8).attr("d", focusLine);
+
+      const contextG = svg.append("g").attr("transform", `translate(0,${focusHeight + 22})`);
+      contextG.append("g").attr("class", "axis").attr("transform", `translate(0,${contextHeight - 18})`)
+        .call(d3.axisBottom(xContext).ticks(d3.timeMonth.every(1)).tickFormat(d3.timeFormat("%b")));
+      contextG.append("path").datum(all2025Days).attr("fill", "none").attr("stroke", "#64748b").attr("stroke-width", 1.2)
+        .attr("d", d3.line().defined(d => !d.missing).x(d => xContext(d.date)).y(d => yContext(d.pm25_city)));
+
+      const brush = d3.brushX()
+        .extent([[margin.left, 0], [width - margin.right, contextHeight - 18]])
+        .on("brush end", ({ selection }) => {
+          if (!selection) {
+            xFocus.domain(fullDomain);
+            d3.select("#task9-subtitle").text("Showing full year (Jan 1 – Dec 31, 2025). Drag on the bottom overview to zoom.");
+          } else {
+            const [d0, d1] = selection.map(xContext.invert);
+            xFocus.domain([d0, d1]);
+            d3.select("#task9-subtitle").html(`Zoomed window: <strong>${fmtNice(d0)}</strong> to <strong>${fmtNice(d1)}</strong>`);
+          }
+          xAxisFocusG.call(d3.axisBottom(xFocus).ticks(8));
+          focusPath.attr("d", focusLine);
+        });
+
+      const brushG = contextG.append("g").attr("class", "brush").call(brush);
+      d3.select("#reset-brush-btn").on("click", () => brushG.call(brush.move, null));
+    })();
+
+    // =========================================================================
+    // Populate Live Answers to Questions for the Director
+    // =========================================================================
+    const sortedByMean = [...monthlyStats].sort((a, b) => d3.descending(a.mean, b.mean));
+    const worstM = sortedByMean[0];
+    const bestM = sortedByMean[sortedByMean.length - 1];
+    const ratio = (worstM.mean / bestM.mean).toFixed(2);
+    const severeMonths = monthlyCounts.filter(m => m.Severe > 0).map(m => `${m.month} (${m.Severe}d)`).join(", ");
+    const mostLowM = [...monthlyCounts].sort((a, b) => d3.descending(a.Low, b.Low))[0];
+
+    const qaList = [
+      {
+        title: "1. Seasonality (Tasks 2, 6 & 7)",
+        body: `<strong>${worstM.month}</strong> is worst (mean <strong>${worstM.mean.toFixed(2)} µg/m³</strong>) and <strong>${bestM.month}</strong> is best (mean <strong>${bestM.mean.toFixed(2)} µg/m³</strong>)—roughly <strong>${ratio}× higher</strong> in ${worstM.month} than ${bestM.month}.`
+      },
+      {
+        title: "2. Anomalies (Task 2)",
+        body: `Top two days: <strong>${fmtDate(top2[0].date)} (${top2[0].pm25_city.toFixed(1)} µg/m³)</strong> and <strong>${fmtDate(top2[1].date)} (${top2[1].pm25_city.toFixed(1)} µg/m³)</strong>. Both are isolated spikes (from inversions/crop burning in Nov and a dust storm/plume in May).`
+      },
+      {
+        title: "3. Guideline Exceedances (Task 2)",
+        body: `<strong>${above15} of ${validRows.length} days (${pct15}%)</strong> exceeded 15 µg/m³ (only 2025-07-09 was below at 11.8 µg/m³), and <strong>${above75} days (${pct75}%)</strong> exceeded 75 µg/m³.`
+      },
+      {
+        title: "4. Unhealthy Build-Up (Task 3)",
+        body: `Steepest climb occurs in <strong>Jan (31d), Feb (28d), Nov (30d), and Dec (31d)</strong> where 100% of days exceed 75 µg/m³; the curve goes flat during <strong>Jun–Aug</strong> (0 unhealthy days).`
+      },
+      {
+        title: "5. City vs. Suburb (Task 4)",
+        body: `The suburb mirrors the seasonal cycle at a lower level (mean 69.17 vs. 86.35 µg/m³), diverging most in <strong>winter (Feb mean gap +32.67 µg/m³; max single-day gap +80.5 µg/m³ on 2025-02-24)</strong>.`
+      },
+      {
+        title: "6. Monthly Composition (Task 5)",
+        body: `Severe days (&gt;150 µg/m³) occur in <strong>${severeMonths}</strong>. <strong>${mostLowM.month}</strong> has the most Low days (<strong>${mostLowM.Low}</strong>). March is shortest (<strong>22d</strong>) due to the 9-day sensor outage; Feb has 28d; Apr/Jun/Sep/Nov have 30d.`
+      },
+      {
+        title: "7. Day-of-Week vs. Month (Task 6)",
+        body: `The heatmap varies strongly across <strong>months</strong> (27.1 µg/m³ in Jul vs. 141.9 µg/m³ in Feb) but stays nearly uniform across <strong>Mon–Sun</strong>, pointing to seasonal weather inversions and regional emissions rather than weekday commuting alone.`
+      },
+      {
+        title: "8. Monthly Spread (Task 7)",
+        body: `<strong>${widestMonth.month}</strong> has the widest gap (<strong>${widestMonth.spread.toFixed(1)} µg/m³</strong>: from ${widestMonth.min.toFixed(1)} on Nov 2 to ${widestMonth.max.toFixed(1)} on Nov 8). A monthly mean (129.01 µg/m³) hides acute emergency spikes.`
+      },
+      {
+        title: "9. Trend & Data Quality (Task 8)",
+        body: `The 7-day moving average shows an <strong>annual seasonal cycle</strong> rather than a monotonic rise. <strong>${totalMissingDays} days</strong> (${gapText}) are missing; joining across the gap would fabricate false readings.`
+      },
+      {
+        title: "10. Zoom Inspection (Task 9)",
+        body: `Zooming into <strong>${widestMonth.month}</strong> reveals multi-day stagnation surges (such as Nov 6–8 jumping from 109.3 to 320.0 µg/m³) followed by rapid 24-hour drops (115.0 on Nov 9) compressed out of sight on the full-year chart.`
+      },
+      {
+        title: "11. Why the Pie Chart Failed",
+        body: `(1) No chronological timeline to show <em>when</em> smog starts or how fast unhealthy days accumulate (Tasks 2 &amp; 3); (2) monthly averages hide 188 days &gt;75 µg/m³, spikes up to 320 µg/m³, and the 9-day March outage (Tasks 5, 7 &amp; 8).`
+      },
+      {
+        title: "12. Two-Month School Restriction Pick",
+        body: `Pick <strong>December and February</strong> (with January tied): Task 5 shows December has the most Severe days (<strong>11</strong>) and February has <strong>8</strong>; Task 7 shows February (<strong>141.87 µg/m³</strong>) and December (<strong>138.81 µg/m³</strong>) have the highest monthly averages; Task 3 shows 100% of days exceed 75 µg/m³.`
+      }
+    ];
+
+    d3.select("#qa-container").html(
+      qaList.map(q => `<div class="qa-item"><h3>${q.title}</h3><p>${q.body}</p></div>`).join("")
+    );
+  }
+
+  d3.select("#csv-file-input").on("change", function (event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => processAndRender(d3.csvParse(e.target.result), `Loaded: ${file.name}`);
+    reader.readAsText(file);
+  });
+
+  d3.csv("air_quality_2025.csv")
+    .then(rows => processAndRender(rows, "Source: air_quality_2025.csv (356 unique days)"))
+    .catch(err => {
+      d3.select("#data-source-badge").text("Click 'Select CSV File' or run via Live Server");
+      console.error(err);
+    });
+})();
+</script>
+</body>
+</html>
